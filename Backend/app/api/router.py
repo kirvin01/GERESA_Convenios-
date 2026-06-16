@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from app.api.cg.registry import CG_ROUTERS
 from app.api.fed.registry import FED_ROUTERS
-from app.api.routes import auth, certificados, pacientes, users
+from app.api.routes import auth, certificados, config_fed, pacientes, users
 
 api_router = APIRouter()
 
@@ -13,6 +13,7 @@ api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(pacientes.router)
 api_router.include_router(certificados.router)
+api_router.include_router(config_fed.router)
 
 # Reportes FED y CG (modulos existentes, mismos prefijos /fed/* y /cg/*)
 for fed_router in FED_ROUTERS:

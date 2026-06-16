@@ -22,3 +22,7 @@ Thumbs.db
 
 # Debug
 debug-*.log
+
+# Respaldos locales
+*.rar
+*.zip
