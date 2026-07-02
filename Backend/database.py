@@ -21,7 +21,7 @@ DB_NAMES: dict[DatabaseKey, str] = {
 }
 
 def _build_engine(database: str) -> Engine:
-    driver = "ODBC Driver 18 for SQL Server"
+    driver = config('DRIVER')
     params = urllib.parse.quote_plus(
         f"DRIVER={{{driver}}};"
         f"SERVER={config('DB_HOST')},{config('DB_PORT')};"

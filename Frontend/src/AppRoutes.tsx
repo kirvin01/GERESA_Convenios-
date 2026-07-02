@@ -1,29 +1,49 @@
-import { type ReactNode } from 'react';
+import { lazy, type ComponentType, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { Box, CircularProgress } from '@mui/material';
 import { AppLayout } from './components/layout/AppLayout';
 import { useAuthContext } from './context/AuthContext';
 import { getDefaultRoute } from './config/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { ForbiddenPage } from './pages/ForbiddenPage';
-import { PatientsPage } from './pages/PatientsPage';
-import { AdminUsersPage } from './pages/AdminUsersPage';
-import { CG10Page } from './pages/CG/CG10Page';
-import { HisDiarioPage } from './pages/FED/HisDiarioPage';
-import { FedMC0301Page } from './pages/FED/FedMC0301Page';
-import { FedSI0101Page } from './pages/FED/FedSI0101Page';
-import { FedMC0201Page } from './pages/FED/FedMC0201Page';
-import { FedSI0102Page } from './pages/FED/FedSI0102Page';
-import { FedSI0103Page } from './pages/FED/FedSI0103Page';
-import { FedSI0201Page } from './pages/FED/FedSI0201Page';
-import { FedSI0202Page } from './pages/FED/FedSI0202Page';
-import { FedSI0203Page } from './pages/FED/FedSI0203Page';
-import { FedSI0204Page } from './pages/FED/FedSI0204Page';
-import { FedSI0301Page } from './pages/FED/FedSI0301Page';
-import { FedSI0302Page } from './pages/FED/FedSI0302Page';
-import { FedVI0102Page } from './pages/FED/FedVI0102Page';
-import { FedVI0101Page } from './pages/FED/FedVI0101Page';
-import { OportunidadModificacionesPage } from './pages/FED/OportunidadModificacionesPage';
-import { FedMC0101Page } from './pages/FED/FedMC0101Page';
+
+function lazyPage<T extends Record<string, ComponentType<unknown>>>(
+    factory: () => Promise<T>,
+    name: keyof T,
+) {
+    return lazy(() => factory().then((mod) => ({ default: mod[name] })));
+}
+
+const PatientsPage = lazyPage(() => import('./pages/PatientsPage'), 'PatientsPage');
+const AdminUsersPage = lazyPage(() => import('./pages/AdminUsersPage'), 'AdminUsersPage');
+const CG10Page = lazyPage(() => import('./pages/CG/CG10Page'), 'CG10Page');
+const HisDiarioPage = lazyPage(() => import('./pages/FED/HisDiarioPage'), 'HisDiarioPage');
+const FedMC0101Page = lazyPage(() => import('./pages/FED/FedMC0101Page'), 'FedMC0101Page');
+const FedMC0201Page = lazyPage(() => import('./pages/FED/FedMC0201Page'), 'FedMC0201Page');
+const FedMC0301Page = lazyPage(() => import('./pages/FED/FedMC0301Page'), 'FedMC0301Page');
+const FedSI0101Page = lazyPage(() => import('./pages/FED/FedSI0101Page'), 'FedSI0101Page');
+const FedSI0102Page = lazyPage(() => import('./pages/FED/FedSI0102Page'), 'FedSI0102Page');
+const FedSI0103Page = lazyPage(() => import('./pages/FED/FedSI0103Page'), 'FedSI0103Page');
+const FedSI0201Page = lazyPage(() => import('./pages/FED/FedSI0201Page'), 'FedSI0201Page');
+const FedSI0202Page = lazyPage(() => import('./pages/FED/FedSI0202Page'), 'FedSI0202Page');
+const FedSI0203Page = lazyPage(() => import('./pages/FED/FedSI0203Page'), 'FedSI0203Page');
+const FedSI0204Page = lazyPage(() => import('./pages/FED/FedSI0204Page'), 'FedSI0204Page');
+const FedSI0301Page = lazyPage(() => import('./pages/FED/FedSI0301Page'), 'FedSI0301Page');
+const FedSI0302Page = lazyPage(() => import('./pages/FED/FedSI0302Page'), 'FedSI0302Page');
+const FedVI0101Page = lazyPage(() => import('./pages/FED/FedVI0101Page'), 'FedVI0101Page');
+const FedVI0102Page = lazyPage(() => import('./pages/FED/FedVI0102Page'), 'FedVI0102Page');
+const OportunidadModificacionesPage = lazyPage(
+    () => import('./pages/FED/OportunidadModificacionesPage'),
+    'OportunidadModificacionesPage',
+);
+
+export function PageLoader() {
+    return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+            <CircularProgress />
+        </Box>
+    );
+}
 
 function RequireAuth({ children }: { children: ReactNode }) {
     const { authenticated } = useAuthContext();

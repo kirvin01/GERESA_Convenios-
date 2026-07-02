@@ -14,6 +14,28 @@ router = APIRouter(prefix="/fed/his-diario", tags=["HIS Diario"])
 
 TABLE = "DBFED2026.dbo.FED_FMODIFICADO_DIARIO"
 
+METRICA_TOTAL = "01. TOTAL ATENCIONES"
+METRICA_OPORTUNOS = "02. REGISTROS OPORTUNOS"
+
+# La tabla almacena una fila por tipo de metrica; pivot con CANTIDAD
+METRIC_AGG_SQL = f"""
+    SUM(CASE WHEN UPPER(TIPO_METRICA) = UPPER('{METRICA_TOTAL}')
+             THEN CANTIDAD ELSE 0 END) AS total_atenciones,
+    SUM(CASE WHEN UPPER(TIPO_METRICA) = UPPER('{METRICA_OPORTUNOS}')
+             THEN CANTIDAD ELSE 0 END) AS registrados_mismo_dia
+"""
+
+PCT_OPORTUNOS_SQL = """
+    CASE WHEN SUM(CASE WHEN UPPER(TIPO_METRICA) = UPPER(:metrica_total)
+                       THEN CANTIDAD ELSE 0 END) > 0
+         THEN ROUND(
+             CAST(SUM(CASE WHEN UPPER(TIPO_METRICA) = UPPER(:metrica_oportunos)
+                           THEN CANTIDAD ELSE 0 END) AS FLOAT)
+             / SUM(CASE WHEN UPPER(TIPO_METRICA) = UPPER(:metrica_total)
+                        THEN CANTIDAD ELSE 0 END) * 100, 2)
+         ELSE 0 END AS pct_oportunos
+"""
+
 def get_db():
     if engine is None:
         raise HTTPException(status_code=503, detail="Base de datos no disponible.")
@@ -96,8 +118,12 @@ def get_grafico(
     db: Connection = Depends(get_db),
     current_user: dict = Depends(require_permission("fed:read")),
 ):
-    filters = ["UPPER(MES) = UPPER(:mes)", "UPPER(TIPO_METRICA) = UPPER(:tipo_metrica)"]
-    params: dict = {"mes": mes, "tipo_metrica": tipo_metrica}
+    filters = ["UPPER(MES) = UPPER(:mes)"]
+    params: dict = {
+        "mes": mes,
+        "metrica_total": METRICA_TOTAL,
+        "metrica_oportunos": METRICA_OPORTUNOS,
+    }
     if red:             filters.append("UPPER(DESC_RED) = UPPER(:red)");                        params["red"] = red
     if microred:        filters.append("UPPER(DESC_MRED) = UPPER(:microred)");                  params["microred"] = microred
     if establecimiento: filters.append("UPPER(ESTABLECIMIENTO) = UPPER(:establecimiento)");      params["establecimiento"] = establecimiento
@@ -109,8 +135,7 @@ def get_grafico(
         rows = db.execute(text(f"""
             SELECT
                 DIA,
-                SUM(TOTAL_ATENCIONES)     AS total_atenciones,
-                SUM(REGISTRADOS_MISMO_DIA) AS registrados_mismo_dia
+                {METRIC_AGG_SQL}
             FROM {TABLE} {w}
             GROUP BY DIA
             ORDER BY DIA
@@ -138,23 +163,23 @@ def get_resumen_mes(
     db: Connection = Depends(get_db),
     current_user: dict = Depends(require_permission("fed:read")),
 ):
-    filters = ["UPPER(TIPO_METRICA) = UPPER(:tipo_metrica)"]
-    params: dict = {"tipo_metrica": tipo_metrica}
+    filters = []
+    params: dict = {
+        "metrica_total": METRICA_TOTAL,
+        "metrica_oportunos": METRICA_OPORTUNOS,
+    }
     if red:             filters.append("UPPER(DESC_RED) = UPPER(:red)");                        params["red"] = red
     if microred:        filters.append("UPPER(DESC_MRED) = UPPER(:microred)");                  params["microred"] = microred
     if establecimiento: filters.append("UPPER(ESTABLECIMIENTO) = UPPER(:establecimiento)");      params["establecimiento"] = establecimiento
     if sistema:         filters.append("UPPER(SISTEMA) = UPPER(:sistema)");                     params["sistema"] = sistema
-    w = "WHERE " + " AND ".join(filters)
+    w = ("WHERE " + " AND ".join(filters)) if filters else ""
 
     try:
         rows = db.execute(text(f"""
             SELECT
                 MES, NRO_MES,
-                SUM(TOTAL_ATENCIONES)      AS total_atenciones,
-                SUM(REGISTRADOS_MISMO_DIA) AS registrados_mismo_dia,
-                CASE WHEN SUM(TOTAL_ATENCIONES) > 0
-                     THEN ROUND(CAST(SUM(REGISTRADOS_MISMO_DIA) AS FLOAT) / SUM(TOTAL_ATENCIONES) * 100, 2)
-                     ELSE 0 END AS pct_oportunos
+                {METRIC_AGG_SQL},
+                {PCT_OPORTUNOS_SQL}
             FROM {TABLE} {w}
             GROUP BY MES, NRO_MES
             ORDER BY NRO_MES
@@ -178,8 +203,12 @@ def get_por_sistema(
     db: Connection = Depends(get_db),
     current_user: dict = Depends(require_permission("fed:read")),
 ):
-    filters = ["UPPER(MES) = UPPER(:mes)", "UPPER(TIPO_METRICA) = UPPER(:tipo_metrica)"]
-    params: dict = {"mes": mes, "tipo_metrica": tipo_metrica}
+    filters = ["UPPER(MES) = UPPER(:mes)"]
+    params: dict = {
+        "mes": mes,
+        "metrica_total": METRICA_TOTAL,
+        "metrica_oportunos": METRICA_OPORTUNOS,
+    }
     if red:             filters.append("UPPER(DESC_RED) = UPPER(:red)");                       params["red"] = red
     if microred:        filters.append("UPPER(DESC_MRED) = UPPER(:microred)");                 params["microred"] = microred
     if establecimiento: filters.append("UPPER(ESTABLECIMIENTO) = UPPER(:establecimiento)");     params["establecimiento"] = establecimiento
@@ -189,11 +218,8 @@ def get_por_sistema(
         rows = db.execute(text(f"""
             SELECT
                 SISTEMA,
-                SUM(TOTAL_ATENCIONES)      AS total_atenciones,
-                SUM(REGISTRADOS_MISMO_DIA) AS registrados_mismo_dia,
-                CASE WHEN SUM(TOTAL_ATENCIONES) > 0
-                     THEN ROUND(CAST(SUM(REGISTRADOS_MISMO_DIA) AS FLOAT) / SUM(TOTAL_ATENCIONES) * 100, 2)
-                     ELSE 0 END AS pct_oportunos
+                {METRIC_AGG_SQL},
+                {PCT_OPORTUNOS_SQL}
             FROM {TABLE} {w}
             GROUP BY SISTEMA
             ORDER BY total_atenciones DESC
@@ -215,8 +241,12 @@ def get_por_red(
     db: Connection = Depends(get_db),
     current_user: dict = Depends(require_permission("fed:read")),
 ):
-    filters = ["UPPER(MES) = UPPER(:mes)", "UPPER(TIPO_METRICA) = UPPER(:tipo_metrica)"]
-    params: dict = {"mes": mes, "tipo_metrica": tipo_metrica}
+    filters = ["UPPER(MES) = UPPER(:mes)"]
+    params: dict = {
+        "mes": mes,
+        "metrica_total": METRICA_TOTAL,
+        "metrica_oportunos": METRICA_OPORTUNOS,
+    }
     if sistema: filters.append("UPPER(SISTEMA) = UPPER(:sistema)"); params["sistema"] = sistema
     w = "WHERE " + " AND ".join(filters)
 
@@ -224,11 +254,8 @@ def get_por_red(
         rows = db.execute(text(f"""
             SELECT
                 DESC_RED,
-                SUM(TOTAL_ATENCIONES)      AS total_atenciones,
-                SUM(REGISTRADOS_MISMO_DIA) AS registrados_mismo_dia,
-                CASE WHEN SUM(TOTAL_ATENCIONES) > 0
-                     THEN ROUND(CAST(SUM(REGISTRADOS_MISMO_DIA) AS FLOAT) / SUM(TOTAL_ATENCIONES) * 100, 2)
-                     ELSE 0 END AS pct_oportunos
+                {METRIC_AGG_SQL},
+                {PCT_OPORTUNOS_SQL}
             FROM {TABLE} {w}
             GROUP BY DESC_RED
             ORDER BY total_atenciones DESC
