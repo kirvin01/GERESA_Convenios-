@@ -23,6 +23,10 @@ Thumbs.db
 # Debug
 debug-*.log
 
+# Deploy
+deploy/.env
+deploy/certbot/
+
 # Respaldos locales
 *.rar
 *.zip

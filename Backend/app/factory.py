@@ -22,9 +22,11 @@ def create_app() -> FastAPI:
         default=(
             "http://localhost:5173,http://127.0.0.1:5173,"
             "http://localhost:4173,http://127.0.0.1:4173,"
-            "http://192.168.1.14:5173,http://192.168.1.14:5174,"
             "http://192.168.1.254:5173,http://192.168.1.254:4173,"
+            "http://192.168.1.14:5173,http://192.168.1.14:5174,"
             "http://192.168.56.1:5173,"
+            "http://indicadores.diresacusco.gob.pe,"
+            "https://indicadores.diresacusco.gob.pe,"
         ),
         cast=Csv(),
     )

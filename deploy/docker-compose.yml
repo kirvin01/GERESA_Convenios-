@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ../Backend/Plantillas:/app/Plantillas:ro
+    restart: unless-stopped
+    networks:
+      - convenio
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ../Frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - convenio
+
+networks:
+  convenio:
+    driver: bridge

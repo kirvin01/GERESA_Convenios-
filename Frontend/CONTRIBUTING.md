@@ -6,9 +6,9 @@ Gracias por colaborar en el Sistema de Historial de Atenciones. Esta guía ayuda
 
 ## Antes de empezar
 
-1. Lea el [README.md](./README.md) y [docs/ARQUITECTURA.md](./docs/ARQUITECTURA.md).
-2. Configure `src/config.ts` con la URL de su API de desarrollo.
-3. Ejecute `npm install` y `npm run dev`.
+1. Lea el [README.md](../README.md) y [docs/ARQUITECTURA.md](./docs/ARQUITECTURA.md).
+2. Copie `Frontend/.env.example` a `Frontend/.env` y configure `VITE_API_URL` y `VITE_CON_PREFIJO`.
+3. Ejecute `npm install` y `npm run dev` (o `npm run dev:host` para acceso en red local).
 4. Asegúrese de tener credenciales de prueba (`user` y `admin`) en el backend.
 
 ---
@@ -67,27 +67,16 @@ Puede usar `FedSI0101Page.tsx` + `fedSI0101Service.ts` como plantilla.
 
 ---
 
-## Configuración recomendada (variables de entorno)
+## Configuración (variables de entorno)
 
-Hoy la URL del API está fija en `config.ts`. Para evitar subir IPs internas al repositorio:
+La URL del API se define en `Frontend/.env` (plantilla: `.env.example`):
 
-1. Crear `.env.local` (no commitear):
+```
+VITE_API_URL=http://192.168.1.254:8000
+VITE_CON_PREFIJO=NO
+```
 
-   ```
-   VITE_API_URL=http://127.0.0.1:8000
-   ```
-
-2. Ajustar `src/config.ts`:
-
-   ```typescript
-   export const API_CONFIG = {
-     baseURL: import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000',
-   };
-   ```
-
-3. Añadir `.env.local` y `.env` al `.gitignore` si aún no están.
-
-4. Commitear `.env.example` con valores de ejemplo.
+`src/config.ts` lee esas variables en tiempo de build; no hace falta editarlo. Tras cambiar `.env`, reinicie `npm run dev` o ejecute `npm run build`.
 
 ---
 
