@@ -1,22 +1,35 @@
-# Despliegue en Ubuntu (Docker + nginx)
+# Despliegue en Ubuntu (Docker + nginx host)
 
-Guía para publicar GERESA Convenios en el servidor de producción con Docker Compose.
+Guía para publicar GERESA Convenios en **indicadores.diresacusco.gob.pe** (IP **38.210.173.251**) **sin puerto en la URL**.
 
-## Requisitos en el servidor
+## Arquitectura
 
-- Ubuntu con Docker y Docker Compose v2
-- Node.js 20+ (solo para `npm run build` del frontend)
-- Acceso de red a SQL Server en `172.16.20.5:1433`
-- Puerto **8082** libre en el host (puerto 80 por defecto suele estar ocupado)
+```
+Internet :80
+    └── nginx del HOST (intranet + proxy inverso)
+            ├── /                    → Intranet GERESA (existente)
+            ├── /api/                → http://127.0.0.1:8082/api/  (Docker)
+            ├── /login, /reportesFED → http://127.0.0.1:8082       (Docker)
+            └── /assets/             → http://127.0.0.1:8082/assets/ (Docker)
 
-## Estructura
+Docker (solo localhost):
+    api   → FastAPI :8000 (interno)
+    nginx → Frontend/dist + proxy /api/ en 127.0.0.1:8082
+```
 
 | Componente | Descripción |
 |------------|-------------|
 | `api` | Contenedor FastAPI (uvicorn :8000 interno, ODBC 18) |
-| `nginx` | Estáticos (`Frontend/dist`) + proxy `/api/` → `api:8000` en puerto **8082** |
+| `nginx` (Docker) | Estáticos + proxy `/api/` → `api:8000`, expuesto solo en **127.0.0.1:8082** |
+| `nginx` (host) | Puerto **80** público; proxy inverso sin `:8082` en la URL |
 
-> La API **no** expone el puerto 8000 al host (evita conflicto con otros contenedores como `geresapi`). Solo nginx es accesible desde fuera.
+## Requisitos en el servidor
+
+- Ubuntu con Docker y Docker Compose v2
+- nginx del sistema en puerto **80** (intranet existente)
+- Node.js 20+ (solo para `npm run build` del frontend)
+- Acceso de red a SQL Server en `172.16.20.5:1433`
+- DNS: `indicadores.diresacusco.gob.pe` → **38.210.173.251**
 
 ## Pasos de despliegue
 
@@ -34,23 +47,23 @@ cp deploy/.env.example deploy/.env
 nano deploy/.env
 ```
 
-Edite credenciales reales de SQL Server, `SECRET_KEY` y, si hace falta, `NGINX_PORT`.
+Edite credenciales SQL Server, `SECRET_KEY` y confirme `NGINX_PORT=8082`.
 
-Para el build del frontend:
+Frontend:
 
 ```bash
 cp Frontend/.env.example Frontend/.env
 nano Frontend/.env
 ```
 
-Valores de producción (ajuste IP o dominio):
+Valores de producción (**sin puerto**):
 
 ```env
-VITE_API_URL=http://38.210.173.253:8082
+VITE_API_URL=http://indicadores.diresacusco.gob.pe
 VITE_CON_PREFIJO=SI
 ```
 
-> **Importante:** `VITE_*` se embeben en el build. Tras cambiar `Frontend/.env` debe ejecutar `npm run build` de nuevo.
+> **Importante:** `VITE_*` se embeben en el build. Tras cambiar `Frontend/.env` ejecute `npm run build` de nuevo.
 
 ### 3. Compilar el frontend
 
@@ -61,11 +74,9 @@ npm run build
 cd ..
 ```
 
-Verifique que exista `Frontend/dist/index.html`.
+Verifique: `ls Frontend/dist/index.html`
 
-### 4. Levantar contenedores
-
-Desde la carpeta `deploy/`:
+### 4. Levantar contenedores Docker
 
 ```bash
 cd deploy
@@ -73,13 +84,41 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Debe ver `deploy-api-1` y `deploy-nginx-1` en estado **Up**, con nginx en `0.0.0.0:8082->80/tcp`.
+Debe ver nginx en `127.0.0.1:8082->80/tcp` (no `0.0.0.0`).
 
-### 5. Verificar
+Prueba local:
 
-- Frontend: http://38.210.173.253:8082
-- API (vía proxy): http://38.210.173.253:8082/api/docs
-- Logs API: `docker compose logs -f api`
+```bash
+curl -I http://127.0.0.1:8082
+curl -I http://127.0.0.1:8082/api/docs
+```
+
+### 5. Configurar proxy inverso en nginx del host (OBLIGATORIO)
+
+Copie la plantilla:
+
+```bash
+sudo cp /var/www/convenio/deploy/nginx-host.conf.example /etc/nginx/snippets/convenio-proxy.conf
+```
+
+Edite el sitio nginx de la intranet (ej. `/etc/nginx/sites-available/indicadores` o el que use `indicadores.diresacusco.gob.pe`) y **dentro del bloque `server {}`**, **antes** del `location /` de la intranet, agregue:
+
+```nginx
+include /etc/nginx/snippets/convenio-proxy.conf;
+```
+
+Verifique y recargue:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 6. Verificar acceso público (sin puerto)
+
+- Intranet: http://indicadores.diresacusco.gob.pe
+- Login Convenios: http://indicadores.diresacusco.gob.pe/login
+- API docs: http://indicadores.diresacusco.gob.pe/api/docs
 
 ## Actualizar tras cambios en el código
 
@@ -87,13 +126,13 @@ Debe ver `deploy-api-1` y `deploy-nginx-1` en estado **Up**, con nginx en `0.0.0
 cd /var/www/convenio
 git pull origin main
 
-# Si hubo cambios en Frontend:
 cd Frontend && npm run build && cd ..
 
-# Si hubo cambios en Backend o deploy:
 cd deploy
 docker compose up -d --build
 ```
+
+No hace falta reiniciar nginx del host salvo que cambie `nginx-host.conf.example`.
 
 ## Solución de problemas
 
@@ -104,63 +143,30 @@ cp deploy/.env.example deploy/.env
 nano deploy/.env
 ```
 
-### `failed to bind host port ...:80/tcp: address already in use`
+### Login carga pero API falla (CORS o 404)
 
-El puerto 80 del host está ocupado (nginx/apache del sistema u otro servicio). Este proyecto usa **8082** por defecto. Confirme en `deploy/.env`:
+- `Frontend/.env`: `VITE_API_URL=http://indicadores.diresacusco.gob.pe` (sin `:8082`)
+- `deploy/.env`: `CORS_ORIGINS` debe incluir el dominio
+- Recompile: `npm run build`
+- Confirme proxy `/api/` en nginx del host: `curl -I http://127.0.0.1/api/docs`
 
-```env
-NGINX_PORT=8082
-```
+### Intranet deja de funcionar tras agregar el proxy
 
-Si 8082 también está ocupado, elija otro libre (ej. `8090`) y actualice `VITE_API_URL` en el frontend antes de `npm run build`.
-
-Ver qué usa un puerto:
-
-```bash
-sudo ss -tlnp | grep ':80'
-sudo ss -tlnp | grep ':8082'
-```
-
-### `deploy-nginx-1` en Created pero no Up
-
-Suele ser conflicto de puerto. Corrija `NGINX_PORT` y ejecute:
-
-```bash
-docker compose up -d
-```
-
-### Frontend en blanco o 404
-
-Falta el build:
-
-```bash
-cd Frontend && npm run build
-cd ../deploy && docker compose up -d
-```
+Los `location` de Convenios deben ir **antes** del `location /` de la intranet. No reemplace el bloque `server {}` completo.
 
 ### Error de conexión a SQL Server
-
-Desde el servidor:
 
 ```bash
 nc -zv 172.16.20.5 1433
 docker compose logs api
 ```
 
-Revise `DB_HOST`, `DB_USER` y `DB_PASSWORD` en `deploy/.env`.
+## Checklist
 
-## Notas
-
-- **Plantillas PDF**: el volumen monta `Backend/Plantillas/` en el contenedor `api`.
-- **SQL Server**: el contenedor `api` debe poder alcanzar `172.16.20.5:1433` (firewall del host y de SQL Server).
-- **Puerto 80 libre**: si prefiere usar el 80, ponga `NGINX_PORT=80` en `deploy/.env` (detenga antes el servicio que lo ocupe).
-- **HTTPS / dominio sin puerto**: configure nginx del host como proxy inverso hacia `http://127.0.0.1:8082`.
-- **HTTPS (opcional)**: certificados Let's Encrypt con un proxy adicional o ampliar `nginx.conf` con bloque `listen 443 ssl`.
-
-## Checklist antes de cada despliegue
-
-1. `cp deploy/.env.example deploy/.env` en servidor nuevo (solo la primera vez)
-2. `npm run build` sin errores
-3. `Frontend/.env` con `VITE_CON_PREFIJO=SI` y URL con puerto (`:8082`)
-4. `deploy/.env` con `DB_HOST`, credenciales y `NGINX_PORT=8082`
-5. `docker compose up -d --build` y ambos contenedores en **Up**
+1. DNS `indicadores.diresacusco.gob.pe` → **38.210.173.251**
+2. `deploy/.env` con credenciales SQL y `SECRET_KEY`
+3. `Frontend/.env` con dominio **sin puerto** y `VITE_CON_PREFIJO=SI`
+4. `npm run build` sin errores
+5. `docker compose ps` → api y nginx **Up** en `127.0.0.1:8082`
+6. `include convenio-proxy.conf` en nginx del host
+7. http://indicadores.diresacusco.gob.pe/login responde

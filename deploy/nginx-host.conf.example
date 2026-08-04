@@ -1,0 +1,45 @@
+# Proxy inverso en nginx del HOST (puerto 80, sin :8082 en la URL).
+#
+# Dominio: indicadores.diresacusco.gob.pe  ->  IP 38.210.173.251
+# Docker Convenios escucha solo en localhost:8082 (ver docker-compose.yml).
+#
+# INSTRUCCIONES:
+# 1. Copie este archivo o pegue los location {} dentro del server {} existente
+#    de la intranet (indicadores.diresacusco.gob.pe).
+# 2. Coloque estos location ANTES del "location /" de la intranet.
+# 3. Pruebe y recargue: sudo nginx -t && sudo systemctl reload nginx
+#
+# Ejemplo de instalacion como sitio incluido:
+#   sudo cp nginx-host.conf.example /etc/nginx/snippets/convenio-proxy.conf
+#   sudo nano /etc/nginx/sites-available/indicadores   # add: include snippets/convenio-proxy.conf;
+#   sudo nginx -t && sudo systemctl reload nginx
+
+# --- API FastAPI (VITE_CON_PREFIJO=SI) ---
+location /api/ {
+    proxy_pass http://127.0.0.1:8082/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 300s;
+}
+
+# --- Rutas SPA del frontend Convenios ---
+location ~ ^/(login|reportesFED|reportesCG|pacientes|admin|403)(/|$) {
+    proxy_pass http://127.0.0.1:8082;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# --- Assets estaticos del build Vite ---
+location /assets/ {
+    proxy_pass http://127.0.0.1:8082/assets/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    expires 7d;
+    add_header Cache-Control "public, immutable";
+}
