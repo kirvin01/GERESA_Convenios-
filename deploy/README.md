@@ -59,7 +59,7 @@ nano Frontend/.env
 Valores de producción (**sin puerto**):
 
 ```env
-VITE_API_URL=http://indicadores.diresacusco.gob.pe
+VITE_API_URL=https://indicadores.diresacusco.gob.pe
 VITE_CON_PREFIJO=SI
 ```
 
@@ -145,7 +145,7 @@ nano deploy/.env
 
 ### Login carga pero API falla (CORS o 404)
 
-- `Frontend/.env`: `VITE_API_URL=http://indicadores.diresacusco.gob.pe` (sin `:8082`)
+- `Frontend/.env`: `VITE_API_URL=https://indicadores.diresacusco.gob.pe` (HTTPS obligatorio)
 - `deploy/.env`: `CORS_ORIGINS` debe incluir el dominio
 - Recompile: `npm run build`
 - Confirme proxy `/api/` en nginx del host: `curl -I http://127.0.0.1/api/docs`
@@ -161,12 +161,107 @@ nc -zv 172.16.20.5 1433
 docker compose logs api
 ```
 
+## Certificado SSL sostenible (Let's Encrypt)
+
+### Diagnóstico previo (su caso)
+
+Si `openssl s_client` muestra `CN = dj.diresacusco.gob.pe` al conectar a `indicadores.diresacusco.gob.pe`, **no existe** un bloque nginx/certificado para `indicadores` y nginx usa el sitio por defecto (`dj`).
+
+Compruebe:
+
+```bash
+dig +short indicadores.diresacusco.gob.pe    # debe ser la IP pública de ESTE servidor
+curl -s ifconfig.me
+sudo certbot certificates                     # debe listar indicadores.diresacusco.gob.pe
+```
+
+### Paso 1 — Bloque nginx SOLO HTTP (obligatorio primero)
+
+**No** use el bloque `listen 443` ni rutas `ssl_certificate` hasta que el certificado exista.
+Si nginx referencia archivos que aun no existen, `nginx -t` y `certbot` fallan.
+
+```bash
+sudo cp /var/www/convenio/deploy/nginx-indicadores-http-only.conf.example /etc/nginx/sites-available/indicadores
+sudo ln -sf /etc/nginx/sites-available/indicadores /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Paso 2 — Emitir certificado
+
+```bash
+sudo certbot certonly --nginx -d indicadores.diresacusco.gob.pe
+```
+
+Confirme que existen los archivos:
+
+```bash
+sudo ls /etc/letsencrypt/live/indicadores.diresacusco.gob.pe/
+```
+
+### Paso 3 — Activar HTTPS + proxy Convenios
+
+**Solo despues** de que certbot haya creado el certificado:
+
+```bash
+sudo cp /var/www/convenio/deploy/nginx-indicadores-ssl.conf.example /etc/nginx/sites-available/indicadores
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Paso 4 — Renovación automática (sostenible)
+
+En Ubuntu, Certbot instala un timer systemd. Verifique:
+
+```bash
+sudo systemctl status certbot.timer
+sudo certbot renew --dry-run
+```
+
+Let's Encrypt renueva cada ~60 días; el timer ejecuta `certbot renew` dos veces al día. Tras renovar, nginx debe recargarse (Certbot lo hace si usó `--nginx` o hay hook en `/etc/letsencrypt/renewal/`).
+
+Hook manual (opcional), en `/etc/letsencrypt/renewal/indicadores.diresacusco.gob.pe.conf`:
+
+```ini
+renew_hook = systemctl reload nginx
+```
+
+### Paso 5 — Frontend con HTTPS
+
+```env
+VITE_API_URL=https://indicadores.diresacusco.gob.pe
+VITE_CON_PREFIJO=SI
+```
+
+```bash
+cd /var/www/convenio/Frontend && npm run build
+```
+
+En `deploy/.env`:
+
+```env
+CORS_ORIGINS=https://indicadores.diresacusco.gob.pe
+```
+
+El frontend (`config.ts`) fuerza HTTPS en produccion si la pagina se carga por HTTPS, evitando mixed content aunque `.env` tenga `http://` por error.
+
+Nginx del host redirige HTTP→HTTPS (301) y envia header HSTS (ver `nginx-indicadores-ssl.conf.example`).
+
+### Verificación final
+
+```bash
+curl -I https://indicadores.diresacusco.gob.pe/login      # HTML Vite, no PHP
+curl -I https://indicadores.diresacusco.gob.pe/api/docs   # 200 FastAPI
+echo | openssl s_client -connect indicadores.diresacusco.gob.pe:443 -servername indicadores.diresacusco.gob.pe 2>/dev/null | openssl x509 -noout -subject
+# subject=CN = indicadores.diresacusco.gob.pe
+```
+
 ## Checklist
 
-1. DNS `indicadores.diresacusco.gob.pe` → **38.210.173.251**
-2. `deploy/.env` con credenciales SQL y `SECRET_KEY`
-3. `Frontend/.env` con dominio **sin puerto** y `VITE_CON_PREFIJO=SI`
-4. `npm run build` sin errores
-5. `docker compose ps` → api y nginx **Up** en `127.0.0.1:8082`
-6. `include convenio-proxy.conf` en nginx del host
-7. http://indicadores.diresacusco.gob.pe/login responde
+1. DNS `indicadores.diresacusco.gob.pe` → IP pública de **este** servidor
+2. Certificado Let's Encrypt para `indicadores.diresacusco.gob.pe`
+3. `deploy/.env` con credenciales SQL y `SECRET_KEY`
+4. `Frontend/.env` con `https://indicadores.diresacusco.gob.pe` y `VITE_CON_PREFIJO=SI`
+5. `npm run build` sin errores
+6. `docker compose ps` → `indicadores-front` e `indicadores-api` **Up** en `127.0.0.1:8082`
+7. nginx: `include convenio-proxy.conf` **antes** de `location /`
+8. `certbot renew --dry-run` sin errores
+9. https://indicadores.diresacusco.gob.pe/login y `/api/docs` responden

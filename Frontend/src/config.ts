@@ -8,8 +8,17 @@ function conPrefijoApi(): boolean {
 }
 
 function resolveBaseUrl(): string {
-    const url = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '') ?? '';
+    let url = import.meta.env.VITE_API_URL?.trim().replace(/\/$/, '') ?? '';
     if (!url) return '';
+    // Produccion: si la pagina se sirve por HTTPS, forzar API por HTTPS (evita mixed content)
+    if (
+        import.meta.env.PROD &&
+        typeof window !== 'undefined' &&
+        window.location.protocol === 'https:' &&
+        url.startsWith('http://')
+    ) {
+        url = url.replace(/^http:\/\//, 'https://');
+    }
     return conPrefijoApi() ? `${url}/api` : url;
 }
 

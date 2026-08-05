@@ -1,5 +1,9 @@
+name: indicadores
+
 services:
   api:
+    container_name: indicadores-api
+    image: indicadores-api
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -12,6 +16,7 @@ services:
       - convenio
 
   nginx:
+    container_name: indicadores-front
     image: nginx:1.27-alpine
     ports:
       # Solo localhost: el nginx del host (puerto 80) hace proxy inverso sin exponer :8082
