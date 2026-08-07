@@ -1,0 +1,26 @@
+---
+description: Contexto permanente del monorepo GERESA Convenios
+alwaysApply: true
+---
+
+# GERESA Convenios — contexto
+
+Monorepo: `Frontend/` (React+Vite+MUI), `Backend/` (FastAPI+SQL Server), `deploy/` (Docker+nginx).
+
+## Fuente de verdad para el agente
+
+1. Código fuente
+2. Carpeta `docs/` (documentación canónica)
+3. `README.md` raíz y `deploy/README.md` para ops
+4. `Frontend/docs/` es histórica y puede estar desfasada — verificar siempre contra código
+
+## Antes de cambiar código
+
+- Leer el documento relevante en `docs/` (backend, frontend, API, auth, env, FED/CG, deploy).
+- No inventar endpoints, roles, tablas ni variables que no existan.
+- Si algo no está en el repo, decir **No existe**.
+
+## Secretos
+
+- Nunca commitear ni pegar valores de `.env`.
+- Solo documentar nombres de variables.

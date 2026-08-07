@@ -1,0 +1,19 @@
+---
+description: Convenciones y hechos del Frontend React/Vite
+globs: Frontend/**/*
+alwaysApply: false
+---
+
+# Frontend
+
+- Rutas y guards: `src/AppRoutes.tsx` (no `App.tsx`).
+- Auth: `AuthContext` + `authService` (`localStorage` key `geresa_token`).
+- Permisos/rutas: `src/config/permissions.ts`.
+- API URL: `src/config.ts` vía `VITE_API_URL` + `VITE_CON_PREFIJO` (SI añade `/api`).
+- `VITE_API_URL` debe incluir esquema (`http://` o `https://`).
+- Servicios FED/CG usan `fetch` local; `apiClient.ts` existe pero casi no se usa.
+- React Query está en `App.tsx`; no hay `useQuery` observado en páginas.
+- No existen hooks `useAuth` / `useApiFetch` (sí `useInactivityLogout`).
+- CG-11 UI reutiliza `CG10Page` y API `/cg/cg10`.
+- Docs históricas en `Frontend/docs/` pueden mentir; preferir `docs/04-frontend.md` y `docs/09-modulos-fed-y-cg.md`.
+- Tras cambiar `.env`: rebuild o reiniciar Vite.

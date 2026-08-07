@@ -1,0 +1,21 @@
+---
+description: Prohibición de inventar APIs, roles, tablas o configs
+alwaysApply: true
+---
+
+# No inventar
+
+Si no está en código o en `docs/`, no lo asumas.
+
+Ejemplos de cosas que **no** existen hoy:
+
+- Tests automatizados / CI
+- Migraciones de BD
+- Backend CG-11
+- Prefijo `/api` dentro de FastAPI
+- Refresh tokens / SSO
+- `vite.config.ts` / carpeta `public/`
+- Hooks `useAuth`, `useApiFetch`
+
+Ante duda: indicar **No documentado / No existe** y citar la ruta revisada.
+Consultar `docs/12-gaps-y-deuda-documental.md`.

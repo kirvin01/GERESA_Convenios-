@@ -1,0 +1,16 @@
+---
+description: Convenciones y hechos del Backend FastAPI
+globs: Backend/**/*
+alwaysApply: false
+---
+
+# Backend
+
+- Entry: `main.py` → `create_app()` en `app/factory.py`.
+- Routers montados en `app/api/router.py` (sin prefijo global `/api`).
+- FED: registrar en `app/api/fed/registry.py`. CG: `app/api/cg/registry.py` (solo CG-10 hoy).
+- Auth: JWT HS256 (`auth.py`); RBAC en `permissions.py` (roles: admin, fed, cg, atenciones, user).
+- DB: `database.py` / `conexion.py`; engine global = GERESA. Muchas queries hardcodean `DBFED2026` / `DBCGESTION_26`.
+- No hay capa services, ni tests/, ni migraciones, ni `Backend/README.md`.
+- Login usa tabla `Usuarios` / `dbo.Usuarios`. Sin esa tabla, `/login` falla con 500.
+- Ver inventario: `docs/03-backend.md`, `docs/05-api-endpoints.md`, `docs/07-base-de-datos.md`.

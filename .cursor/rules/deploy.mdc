@@ -1,0 +1,16 @@
+---
+description: Despliegue Docker/nginx — hechos del repo
+globs: deploy/**/*
+alwaysApply: false
+---
+
+# Deploy
+
+- Compose: servicios `api` + `nginx` (`deploy/docker-compose.yml`).
+- API image: Python 3.11 + ODBC 18; uvicorn `:8000`.
+- Nginx Compose sirve `Frontend/dist` y proxy `/api/` → api (sin CI en el repo).
+- Host nginx ejemplos: `nginx-host.conf.example`, HTTP-only y SSL.
+- Dominio documentado: `indicadores.diresacusco.gob.pe`.
+- Prod frontend: `VITE_CON_PREFIJO=SI` y rebuild obligatorio.
+- Guía: `deploy/README.md` y `docs/10-despliegue.md`.
+- No asumir GitHub Actions ni pipelines — no existen.

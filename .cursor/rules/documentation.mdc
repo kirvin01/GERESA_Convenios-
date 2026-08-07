@@ -1,0 +1,13 @@
+---
+description: Mantener y consultar docs/ al trabajar con Cursor
+alwaysApply: true
+---
+
+# Documentación
+
+- Documentación canónica: `docs/` (Markdown).
+- Cada doc incluye: Objetivo, Alcance, Responsabilidades, Dependencias, Archivos relacionados, Riesgos, Mejoras posibles.
+- Índice: `docs/README.md`.
+- Gaps conocidos: `docs/12-gaps-y-deuda-documental.md`.
+- Al añadir features (endpoint, página, rol, env var), actualizar el doc correspondiente en `docs/`.
+- No modificar código cuando el usuario pida solo documentación.
